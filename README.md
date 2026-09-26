@@ -21,6 +21,14 @@ Controlador autônomo e integração para a plataforma [Arena AI](https://arena.
 
 ---
 
+## 🎯 Regra de Ouro: Priorização da Execução na Nuvem (Economia de Tokens)
+
+1. **Prioridade 1 (Padrão):** O agente deve SEMPRE priorizar a execução via Arena AI (utilizando as skills do repositório `gabrielhklaser/gabebrain-skills` diretamente na plataforma Arena). Qualquer implementação, escrita de código, criação de testes e refatoração roda em nuvem sem consumir tokens locais do Antigravity.
+2. **Prioridade 2 (Exceção):** O motor do Antigravity só deve ser acionado quando houver necessidade explícita de acessar arquivos físicos locais do GabeBrain (Biblioteca Geológica no Google Drive, Docling local ou ferramentas desktop). Nesses casos, o Antigravity atua como orquestrador cirúrgico e envia o contexto mastigado para a Arena AI executar.
+
+
+---
+
 ## 📦 Estrutura do Projeto
 
 ```text
