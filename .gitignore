@@ -5,6 +5,7 @@
 # Persistent browser profile & sessions
 arena_user_data/
 user_data/
+.session_data/
 
 # Python
 __pycache__/

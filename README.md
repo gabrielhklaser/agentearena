@@ -1,90 +1,96 @@
 # Agente Arena (`/agentearena`)
 
-Controlador autônomo e integração para a plataforma [Arena AI](https://arena.ai/) (Agent Mode) com suporte nativo a repositórios GitHub, gerenciamento de sessões persistentes e rotina de recuperação de falhas de conexão (`recover-and-push`).
+Controlador da plataforma [Arena AI](https://arena.ai/) (Agent Mode) para o ecossistema **GabeBrain**: relay de prompts, seleção de repositório/branch no GitHub, sessão de navegador descartável e rotina de recuperação (`recover-push`) quando o Arena perde a conexão com o repositório.
+
+Este repositório é a versão standalone da skill `arena-ai-controller`. O conteúdo é idêntico à fonte canônica (`~/.gemini/config/skills/arena-ai-controller/`) e à cópia em [`gabebrain-skills`](https://github.com/gabrielhklaser/gabebrain-skills) (`skills/arena-ai-controller/`). Instruções completas para agentes em [`SKILL.md`](SKILL.md).
 
 ---
 
 ## 🚀 Funcionalidades
 
-- **Autenticação Automática e Persistente**: Gerenciamento de login via Playwright com perfil de navegador persistente (`arena_user_data`), mantendo a sessão ativa sem precisar autenticar a cada execução.
-- **Relay de Prompts**: Envio programático de prompts para o agente do Arena AI, com monitoramento do ciclo de geração em tempo real e captura da resposta.
-- **Integração com GitHub**:
-  - Seleção dinâmica de repositórios vinculados à conta.
-  - Seleção e rastreamento de branches específicas da conversa.
-- **Rotina de Recuperação de Falhas (`recover-and-push`)**:
-  - Caso o Arena AI perca a conexão com o repositório ou o workspace seja reiniciado:
-    1. Identifica o branch ou identificador da conversa trabalhada.
-    2. Abre uma nova conversa em `https://arena.ai/agent`.
-    3. Reconecta o repositório no GitHub e seleciona a branch correspondente.
-    4. Envia o comando de recarregamento para restaurar todo o histórico e alterações do projeto.
-    5. Executa o push direto das modificações para o repositório de destino no GitHub.
+- **Sessão persistente e descartável**: perfil Playwright fora de pastas sincronizadas (padrão `%LOCALAPPDATA%\gabebrain\arena-ai-controller`). Pode ser apagado a qualquer momento com `purge-session`; o próximo uso refaz o login pelo `.env`. `ARENA_PURGE_AFTER_USE=1` apaga ao fim de cada execução.
+- **Relay de prompts**: envia prompts ao Agent Mode, acompanha a geração e devolve só as mensagens novas.
+- **Skills GabeBrain na nuvem**: em conversas novas, prefixa o prompt pedindo ao Arena que consulte as skills do `gabebrain-skills` (`superpowers-coding-agent`, `no-ai-slop`, `escrita-tecnica-humanizada`). Desative com `--no-skill-prefix`.
+- **Confirmações e follow-ups**: detecta quando o agente pede confirmação/escolha (`waiting_user_input` + `options`) e permite responder na mesma conversa com `--conversation-url`.
+- **Health check de seletores**: `status` informa se a UI do Arena mudou e o script ficou "cego".
+- **GitHub**: habilita a conexão, lista repositórios e seleciona repo/branch. A seleção é estrita: se o repo ou a branch não forem encontrados, o script aborta.
+- **Recuperação (`recover-push`)**: abre conversa nova, reconecta repo e branch e manda recarregar as alterações da conversa anterior e fazer push.
 
 ---
 
-## 🎯 Regra de Ouro: Priorização da Execução na Nuvem (Economia de Tokens)
+## 🎯 Regra de Ouro: priorizar a execução na nuvem (economia de tokens)
 
-1. **Prioridade 1 (Padrão):** O agente deve SEMPRE priorizar a execução via Arena AI (utilizando as skills do repositório `gabrielhklaser/gabebrain-skills` diretamente na plataforma Arena). Qualquer implementação, escrita de código, criação de testes e refatoração roda em nuvem sem consumir tokens locais do Antigravity.
-2. **Prioridade 2 (Exceção):** O motor do Antigravity só deve ser acionado quando houver necessidade explícita de acessar arquivos físicos locais do GabeBrain (Biblioteca Geológica no Google Drive, Docling local ou ferramentas desktop). Nesses casos, o Antigravity atua como orquestrador cirúrgico e envia o contexto mastigado para a Arena AI executar.
+1. **Prioridade 1 (padrão):** delegar implementação, testes, refatoração e análises extensas ao Arena AI, que consome as skills direto do `gabrielhklaser/gabebrain-skills`.
+2. **Prioridade 2 (exceção):** usar o motor local (Antigravity/Claude Code) só quando for preciso acessar arquivos físicos do GabeBrain (Biblioteca Geológica no Drive, Docling local, QGIS). Nesse caso o agente local lê o trecho necessário e despacha o contexto para o Arena executar.
 
+Antes de despachar, passe o prompt pelo `prompt-router-coordinator`: se ele indicar `antigravity` ou `claude`, não envie ao Arena.
 
 ---
 
-## 📦 Estrutura do Projeto
+## 📦 Estrutura
 
 ```text
 agentearena/
-├── arena_agent.py      # Motor de automação e interface CLI
-├── requirements.txt    # Dependências (Playwright)
-├── .env.example        # Modelo de variáveis de ambiente
-├── .gitignore          # Proteção para dados de sessão e credenciais
-└── README.md           # Documentação do projeto
+├── SKILL.md              # Instruções da skill para os agentes
+├── scripts/
+│   └── arena_agent.py    # Motor de automação e CLI
+├── requirements.txt      # Dependências (Playwright)
+├── .env.example          # Modelo de variáveis de ambiente
+└── .gitignore            # Protege .env e dados de sessão
 ```
 
 ---
 
-## 🛠️ Instalação e Configuração
+## 🛠️ Instalação
 
-1. **Instale as dependências:**
-   ```bash
-   pip install -r requirements.txt
-   python -m playwright install chromium
-   ```
+Requer **Python ≥ 3.10**.
 
-2. **Configure o arquivo de credenciais:**
-   Copie `.env.example` para `.env` e preencha suas informações:
-   ```env
-   ARENA_EMAIL=seu_email@dominio.com
-   ARENA_PASSWORD=sua_senha
-   ARENA_USER_DATA_DIR=./arena_user_data
-   ```
+```bash
+pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+Copie `.env.example` para `.env` **na raiz do repositório** (ao lado de `SKILL.md`) e preencha `ARENA_EMAIL` e `ARENA_PASSWORD`. Variáveis de ambiente do processo têm precedência sobre o `.env`.
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `ARENA_EMAIL` / `ARENA_PASSWORD` | — | Login no Arena |
+| `ARENA_HEADLESS` | `true` | `false` para ver a janela do navegador |
+| `ARENA_USER_DATA_DIR` | `%LOCALAPPDATA%\gabebrain\arena-ai-controller` | Perfil do navegador (nunca em Drive/vault) |
+| `ARENA_PURGE_AFTER_USE` | desligado | `1` apaga o perfil após cada execução |
+| `ARENA_SKILL_PREFIX` | instrução padrão GabeBrain | Texto prefixado em conversas novas |
 
 ---
 
-## 💻 Uso via Linha de Comando (CLI)
+## 💻 CLI
 
-### 1. Testar Status da Sessão / Login
 ```bash
-python arena_agent.py login
+python scripts/arena_agent.py login
+python scripts/arena_agent.py status
+python scripts/arena_agent.py list-repos
+python scripts/arena_agent.py connect --repo "gabrielhklaser/REPO" --branch "main"
+python scripts/arena_agent.py send --prompt "..." --repo "gabrielhklaser/REPO" --branch "main" [--timeout 180] [--prompt-file arquivo.txt] [--no-skill-prefix]
+python scripts/arena_agent.py send --conversation-url "https://arena.ai/agent/<id>" --prompt "Approve"
+python scripts/arena_agent.py recover-push --repo "gabrielhklaser/REPO" --branch "BRANCH"
+python scripts/arena_agent.py purge-session
 ```
 
-### 2. Listar Repositórios do GitHub Conectados
-```bash
-python arena_agent.py list-repos
-```
+### Contrato de saída (`send` / `recover-push`)
 
-### 3. Enviar um Prompt para o Arena AI Agent
-```bash
-python arena_agent.py send --prompt "Crie um componente de login responsivo em React" --repo "gabrielhklaser/agentearena" --branch "main"
-```
+Durante a execução, `[CONVERSATION_URL] <url>` é emitido assim que a conversa existe. A última linha do stdout é `[RESULT_JSON] {…}` (JSON em uma linha) com `status`, `response`, `conversation_url`, `requires_confirmation`, `last_message`, `options` e `warnings`.
 
-### 4. Recuperação Automática e Push de Alterações
-Se a conexão for perdida durante o desenvolvimento:
-```bash
-python arena_agent.py recover-push --repo "gabrielhklaser/agentearena" --branch "main"
-```
+| `status` | Significado | Ação |
+|---|---|---|
+| `success` | Geração terminou | Registrar resposta |
+| `waiting_user_input` | Agente pediu confirmação/escolha (`options`) | `send --conversation-url <url> --prompt "<opção>"` |
+| `timeout` | Tempo local esgotou, agente segue rodando na nuvem | Não reenviar; retomar pela mesma `conversation_url` |
+
+Um prompt curto (≤ 35 caracteres) igual ao texto de um botão visível vira clique, mas só com `--conversation-url`.
 
 ---
 
 ## 🛡️ Segurança
 
-- As credenciais e tokens de sessão ficam protegidos em arquivos locais `.env` e na pasta de sessão do navegador `arena_user_data/`, ambos ignorados no controle de versão (`.gitignore`).
+- Credenciais só no `.env` (ignorado pelo Git) ou em variáveis de ambiente; nada embutido no código.
+- Logs não expõem o e-mail (`email_configured: true`) nem o conteúdo do prompt (só a contagem de caracteres).
+- O script avisa se o perfil de sessão estiver em pasta sincronizada (Drive, OneDrive, Dropbox, vault) e remove pastas `.session_data` de versões antigas.
