@@ -58,7 +58,8 @@ Cópias espelhadas (manter idênticas à canônica): `GabeBrain\.claude\skills\�
 
 - **Credenciais**: Ficam só no `.env` da skill (`ARENA_EMAIL`, `ARENA_PASSWORD`, opcional `ARENA_USER_DATA_DIR`) ou variáveis de ambiente. Sem fallback ou credenciais embutidas no código.
 - **Privacidade & Logs**: Logs de login/status reportam apenas se o e-mail está configurado (`email_configured: true`), nunca o e-mail em texto puro. O relay de prompt registra contagem de caracteres sem expor o conteúdo sensível.
-- **Headless**: `ARENA_HEADLESS` tem padrão `true`; configure como `false` quando for necessário acompanhar a janela interativa.
+- **Execução Silenciosa (Off-Screen)**: Por padrão, o navegador roda em modo headful com posicionamento off-screen (`--window-position=-32000,-32000`). Isso permite superar o Cloudflare Turnstile instantaneamente sem abrir janelas ou interromper a tela do usuário. Use `--visible` ou `ARENA_VISIBLE=true` apenas se desejar acompanhar visualmente a janela.
+- **Auto-Failover & Continuidade**: Caso o prompt pare, sofra interrupção ou atinja timeout local antes de concluir, o script abre uma nova conversa automaticamente, copia o ID da conversa anterior, reconecta a branch de trabalho, instrui a recarga e push de alterações pendentes, recarrega as skills GabeBrain e continua a tarefa até sua finalização.
 
 ### Dados de sessão são descartáveis
 
